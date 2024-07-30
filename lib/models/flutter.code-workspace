@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "D:/devv c++/vscode"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"iostream": "cpp",
+			"ostream": "cpp"
+		}
+	}
+}
