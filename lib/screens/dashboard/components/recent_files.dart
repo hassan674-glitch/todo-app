@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:todo_app/utils/resuable_text_widget.dart';
 import 'package:todo_app/utils/colors.dart';
-
 import '../../../Model/book_class.dart';
 import '../../../constants.dart';
 import '../../../responsive.dart';
@@ -23,17 +21,18 @@ class RecentFiles extends StatefulWidget {
 class _RecentFilesState extends State<RecentFiles> {
   final _formKey = GlobalKey<FormState>();
   final FirestoreService bookService = FirestoreService();
-  // final CollectionReference booksCollection = FirebaseFirestore.instance.collection('books');
   final TextEditingController _bookNameController = TextEditingController();
-  final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _pagesController = TextEditingController();
+  final TextEditingController _authorNameController = TextEditingController();
+  final TextEditingController _categoryController = TextEditingController();
 
   Future<void> updateBook(Book book) async {
     _bookNameController.clear();
-    _pagesController.text=" ";
+    _authorNameController.clear();
+    _categoryController.clear();
+
     _bookNameController.text = book.bookName;
-    _dateController.text = book.date.toDate().toString();
-    _pagesController.text = book.pages.toString();
+    _authorNameController.text = book.authorName ?? '';
+    _categoryController.text = book.category;
 
     showDialog(
       context: context,
@@ -47,7 +46,7 @@ class _RecentFilesState extends State<RecentFiles> {
             content: SingleChildScrollView(
               child: Container(
                 width: 400,
-                height: 200,
+                height: 300,
                 child: Column(
                   children: [
                     Form(
@@ -60,9 +59,12 @@ class _RecentFilesState extends State<RecentFiles> {
                             decoration: const InputDecoration(labelText: 'Book Name'),
                           ),
                           TextFormField(
-                            controller: _pagesController,
-                            decoration: const InputDecoration(labelText: 'Pages'),
-                            keyboardType: TextInputType.number,
+                            controller: _authorNameController,
+                            decoration: const InputDecoration(labelText: 'Author Name'),
+                          ),
+                          TextFormField(
+                            controller: _categoryController,
+                            decoration: const InputDecoration(labelText: 'Category'),
                           ),
                         ],
                       ),
@@ -78,8 +80,11 @@ class _RecentFilesState extends State<RecentFiles> {
                   final updatedBook = Book(
                     id: book.id,
                     bookName: _bookNameController.text,
-                    date: bookService.updateBook == null ? book.date : currentTimestamp,
-                    pages: int.parse(_pagesController.text),
+                    date: book.date,
+                    updatedOn: currentTimestamp,
+                    authorName: _authorNameController.text,
+                    category: _categoryController.text,
+                    url: book.url,
                   );
 
                   await bookService.updateBook(updatedBook);
@@ -104,7 +109,6 @@ class _RecentFilesState extends State<RecentFiles> {
 
   Future<void> confirmDelete(Book book) async {
     showDialog(
-
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -119,15 +123,27 @@ class _RecentFilesState extends State<RecentFiles> {
             ),
             TextButton(
               onPressed: () async {
-                await bookService.deleteBook(book.id);
-                Navigator.of(context).pop();
-                showCustomSnackbar(
-                  context: context,
-                  message: "Book Deleted Successfully",
-                  onUndoPressed: () {},
-                  onCustomActionPressed: () {},
-                );
-                setState(() {});
+                try {
+                  final storageRef = FirebaseStorage.instance.refFromURL(book.url!);
+                  await storageRef.delete();
+                  await bookService.deleteBook(book.id);
+                  Navigator.of(context).pop();
+                  showCustomSnackbar(
+                    context: context,
+                    message: "Book Deleted Successfully",
+                    onUndoPressed: () {},
+                    onCustomActionPressed: () {},
+                  );
+                  setState(() {});
+                } catch (e) {
+                  Navigator.of(context).pop();
+                  showCustomSnackbar(
+                    context: context,
+                    message: "Error deleting book: $e",
+                    onUndoPressed: () {},
+                    onCustomActionPressed: () {},
+                  );
+                }
               },
               child: const Text('Delete'),
             ),
@@ -136,6 +152,7 @@ class _RecentFilesState extends State<RecentFiles> {
       },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +229,7 @@ class _RecentFilesState extends State<RecentFiles> {
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
                         "Last Updated",
@@ -244,65 +262,68 @@ class _RecentFilesState extends State<RecentFiles> {
                         ),
                         DataCell(
                           Text(
-                            "ABC", // Replace with actual author name if available
+                            book.authorName ?? "Unknown",
+                            style: const TextStyle(
+                                overflow: TextOverflow.ellipsis,
+                                fontSize: 12),
+                          ),
+                        ),
+
+                        DataCell(
+                          Text(
+                            DateFormat("dd MMM, yyyy").format(book.updatedOn?.toDate() ?? book.date.toDate()),
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
                         DataCell(
-                          Text(
-                            DateFormat("dd MMM, yyyy").format(book.date.toDate()),
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        DataCell(Row(
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                updateBook(book);
-                              },
-                              child: Container(
-                                height: 30,
-                                width: 60,
-                                decoration: BoxDecoration(
-                                  color: AppColors.BlueColor,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "Edit",
-                                    style: TextStyle(
-                                      color: Colors.white,
+                            Row(
+                              children: [
+                                InkWell(
+                                  onTap: () {
+                                    updateBook(book);
+                                  },
+                                  child: Container(
+                                    height: 30,
+                                    width: 60,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.BlueColor,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        "Edit",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            SizedBox(width: 2,),
-                            InkWell(
-                              onTap: () {
-                                confirmDelete(book);
-                              },
-                              child: Container(
-                                height: 30,
-                                width: 60,
-                                decoration: BoxDecoration(
-                                  color: AppColors.BrownColor,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "Delete",
-                                    style: TextStyle(
-                                      color: Colors.white,
+                                SizedBox(width: 2,),
+                                InkWell(
+                                  onTap: () {
+                                    confirmDelete(book);
+                                  },
+                                  child: Container(
+                                    height: 30,
+                                    width: 60,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.BrownColor,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        "Delete",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        )
+                              ],
+                            )
                         ),
-
                       ],
                     );
                   }).toList(),

@@ -7,25 +7,27 @@ void showCustomSnackbar({
   required VoidCallback onCustomActionPressed,
 }) {
   final snackBar = SnackBar(
-    content: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.check_circle, color: Colors.white),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            message,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+    content: Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle, color: Colors.black,),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
-        ),
-      ],
+        ],
+      ),
     ),
-    backgroundColor: Colors.black26,
+    backgroundColor: Colors.white,
     behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(50),
@@ -34,7 +36,7 @@ void showCustomSnackbar({
     duration: Duration(seconds: 4),
     action: SnackBarAction(
       label: 'UNDO',
-      textColor: Colors.yellow,
+      textColor:Colors.black,
       onPressed: onUndoPressed,
     ),
   );

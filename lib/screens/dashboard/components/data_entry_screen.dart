@@ -1,24 +1,95 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:todo_app/utils/custom_snakbar.dart';
-import 'package:todo_app/services/firestore_services.dart';
 import '../../../Model/book_class.dart';
+import '../../../services/firestore_services.dart';
+import '../../../utils/colors.dart';
 import '../../../constants.dart';
 
-class DataEntryScreen extends StatelessWidget {
-  final Book? book;
-  final FirestoreService _firestoreService = FirestoreService();
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _field1Controller = TextEditingController();
-  final TextEditingController _field3Controller = TextEditingController();
-  late String _title;
-  late int _pages;
+class DataEntryScreen extends StatefulWidget {
+  @override
+  _DataEntryScreenState createState() => _DataEntryScreenState();
+}
 
-  DataEntryScreen({super.key, this.book}) {
-    if (book != null) {
-      _field1Controller.text = book!.bookName;
-      _field3Controller.text = book!.pages.toString();
+class _DataEntryScreenState extends State<DataEntryScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _bookNameController = TextEditingController();
+  final TextEditingController _authorNameController = TextEditingController();
+  final TextEditingController _categoryController = TextEditingController();
+  final FirestoreService _firestoreService = FirestoreService();
+  String? _url;
+  bool _isUploading = false;
+
+  @override
+  void dispose() {
+    _bookNameController.dispose();
+    _authorNameController.dispose();
+    _categoryController.dispose();
+    super.dispose();
+  }
+
+  Future<String> uploadPdf(String fileName, FilePickerResult file) async {
+    final reference = FirebaseStorage.instance.ref().child("pdf/$fileName");
+    UploadTask uploadTask;
+    uploadTask = reference.putData(file.files.first.bytes!);
+    await uploadTask.whenComplete(() {});
+    final downloadUrl = await reference.getDownloadURL();
+    return downloadUrl;
+  }
+
+  void pickFile() async {
+    setState(() {
+      _isUploading = true;
+    });
+
+    final pickedFile = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: kIsWeb,
+    );
+
+    if (pickedFile != null) {
+      String filename = pickedFile.files.single.name;
+      final downloadLink = await uploadPdf(filename, pickedFile);
+      setState(() {
+        _url = downloadLink;
+        _isUploading = false;
+      });
+    } else {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
+
+  void _submitForm() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      if (_url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please upload a PDF file')),
+        );
+        return;
+      }
+
+      final newBook = Book(
+        id: '',
+        bookName: _bookNameController.text,
+        date: Timestamp.now(),
+        category: _categoryController.text,
+        authorName: _authorNameController.text,
+        url: _url!,
+      );
+
+      await _firestoreService.createBook(newBook);
+
+      Navigator.pop(context);
+showCustomSnackbar(context: context, message:'Book added successfully',
+    onUndoPressed: (){},
+    onCustomActionPressed: (){});
+
     }
   }
 
@@ -26,107 +97,81 @@ class DataEntryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Form'),
+        title: const Text('Add New Book'),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Center(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(defaultPadding),
-                child: Form(
-                  key: _formKey,
-                  child: constraints.maxWidth < 600
-                      ? Column(
-                    children: _buildFormFields(context, constraints),
-                  )
-                      : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: _buildFormFields(context, constraints)
-                        .map((field) {
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: field,
-                        ),
-                      );
-                    }).toList(),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: <Widget>[
+              TextFormField(
+                controller: _bookNameController,
+                decoration: InputDecoration(
+                  labelText: 'Book Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
                   ),
                 ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter the book name';
+                  }
+                  return null;
+                },
               ),
-            ),
-          );
-        },
+              SizedBox(height: defaultPadding * 2),
+              TextFormField(
+                controller: _authorNameController,
+
+                decoration: InputDecoration(
+                  labelText: 'Author Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter the Author Name';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: defaultPadding * 2),
+              TextFormField(
+                controller: _categoryController,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter the category';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: defaultPadding * 2),
+              _isUploading
+                  ? CircularProgressIndicator()
+                  : ElevatedButton(
+                onPressed: pickFile,
+                child: Text("Upload PDF"),
+              ),
+              SizedBox(height: defaultPadding * 2),
+              ElevatedButton(
+                onPressed: _submitForm,
+                child: const Text('Submit'),
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(AppColors.primaryColor),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
-  }
-
-  List<Widget> _buildFormFields(BuildContext context, BoxConstraints constraints) {
-    List<Widget> formFields = [
-      TextFormField(
-        controller: _field1Controller,
-        decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-            labelText: 'Book Name'),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Please enter some text';
-          }
-          return null;
-        },
-        onSaved: (value) => _title = value!,
-      ),
-
-      TextFormField(
-        controller: _field3Controller,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-            labelText: 'Pages'),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Please enter some text';
-          }
-          if (int.tryParse(value) == null) {
-            return 'Please enter a valid number';
-          }
-          return null;
-        },
-        onSaved: (value) => _pages = int.parse(value!),
-      ),
-      ElevatedButton(
-        onPressed: () async {
-          if (_formKey.currentState!.validate()) {
-            _formKey.currentState!.save();
-            final Timestamp currentTimestamp = Timestamp.now();
-
-            Book saveBook = Book(
-              id: book?.id ?? '',
-              bookName: _title,
-              date: currentTimestamp,
-              pages: _pages,
-              updatedOn: book == null ? null : currentTimestamp,
-            );
-
-              await _firestoreService.createBook(saveBook);
-
-
-            Navigator.pop(context);
-          showCustomSnackbar(context: context, message: "New Book aded", onUndoPressed: (){}, onCustomActionPressed:(){} );
-
-          }
-        },
-        child: const Text('Submit'),
-      ),
-    ];
-
-    return constraints.maxWidth < 600
-        ? formFields
-        .map((field) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: field,
-    ))
-        .toList()
-        : formFields;
   }
 }

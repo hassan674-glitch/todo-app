@@ -36,17 +36,14 @@ class MainScreen extends StatelessWidget {
               Row(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
                     child: Text("Welcome Admin",style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold
                     ),),
 
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Icon(Icons.arrow_drop_down),
-                  ),
+                 
                 ],
               ),
               Padding(
@@ -78,8 +75,11 @@ class MainScreen extends StatelessWidget {
                   // and it takes 1/6 part of the screen
                   child: SideMenu(),
                 ),
+
               if(Responsive.isMobile(context))
-                PhoneUi(),
+                Expanded(child: PhoneUi()),
+              if(Responsive.isTablet(context))
+                Expanded(child: DashboardScreen()),
               if(Responsive.isDesktop(context))
               Expanded(
                 // It takes 5/6 part of the screen

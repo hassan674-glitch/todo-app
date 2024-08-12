@@ -1,12 +1,20 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:todo_app/constants.dart';
 import 'package:todo_app/services/firestore_services.dart';
 import 'package:todo_app/utils/colors.dart';
 import '../../Model/book_class.dart';
+import '../../utils/custom_snakbar.dart';
 
 class AddNewScreen extends StatefulWidget {
   const AddNewScreen({super.key});
+
   @override
   _AddNewScreenState createState() => _AddNewScreenState();
 }
@@ -17,6 +25,39 @@ class _AddNewScreenState extends State<AddNewScreen> {
   final TextEditingController _bookNameController = TextEditingController();
   final TextEditingController _authorNameController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
+String? _url;
+bool _isUploading=false;
+  Future<String> uploadPdf(String fileName, FilePickerResult file) async {
+    final reference = FirebaseStorage.instance.ref().child("pdf/$fileName");
+    UploadTask uploadTask;
+    uploadTask = reference.putFile(File(file.files.single.path!));
+    await uploadTask.whenComplete(() {});
+    final downloadUrl = await reference.getDownloadURL();
+    return downloadUrl;
+  }
+  void pickFile() async {
+    setState(() {
+      _isUploading = true;
+    });
+
+    final pickedFile = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    if (pickedFile != null) {
+      String filename = pickedFile.files.single.name;
+      final downloadLink = await uploadPdf(filename, pickedFile);
+      setState(() {
+        _url = downloadLink;
+        _isUploading = false;
+      });
+    } else {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -87,22 +128,32 @@ class _AddNewScreenState extends State<AddNewScreen> {
                   },
                 ),
                 SizedBox(height: 32),
+                _isUploading?Center(child: CircularProgressIndicator()):Center(
+                  child: ElevatedButton(
+                      onPressed: pickFile,
+                      child:Icon(Icons.upload_file) ),
+                ),
+                SizedBox(height: defaultPadding),
                 Center(
                   child: ElevatedButton(
                     onPressed: () async {
                       if (_formKey.currentState!.validate()) {
                         final Timestamp currentTime = Timestamp.now();
-        
+
                         Book newBook = Book(
                           id: '',
                           bookName: _bookNameController.text,
                           date: currentTime,
-                          pages: int.parse(_authorNameController.text),
-        
+                          authorName: _authorNameController.text,
+                          category: _categoryController.text,
+                          url: _url,
                         );
-        
+
                         await bookService.createBook(newBook);
                         Navigator.pop(context);
+                        showCustomSnackbar(context: context, message:'Book added successfully',
+                            onUndoPressed: (){},
+                            onCustomActionPressed: (){});
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -112,9 +163,10 @@ class _AddNewScreenState extends State<AddNewScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: Text('Save',style: TextStyle(
-                      color: Colors.white
-                    ),),
+                    child: Text(
+                      'Save',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],

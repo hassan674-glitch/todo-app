@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:todo_app/services/firestore_services.dart';
 import 'package:todo_app/utils/colors.dart';
 import '../../Model/book_class.dart';
+import '../../utils/custom_snakbar.dart';
 
 class EditBookScreen extends StatefulWidget {
-  final Book book; // Add this line to accept Book as a parameter
+  final Book book;
 
-  EditBookScreen({required this.book}); // Modify constructor
+  EditBookScreen({required this.book});
 
   @override
   _EditBookScreenState createState() => _EditBookScreenState();
@@ -24,10 +25,9 @@ class _EditBookScreenState extends State<EditBookScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize controllers with book data
     _bookNameController.text = widget.book.bookName;
-    _authorNameController.text = widget.book.pages.toString();
-    // _categoryController.text = widget.book.category ?? '';
+    _authorNameController.text = widget.book.authorName!;
+    _categoryController.text = widget.book.category;
   }
 
   @override
@@ -108,12 +108,16 @@ class _EditBookScreenState extends State<EditBookScreen> {
                         id: widget.book.id,
                         bookName: _bookNameController.text,
                         date: currentTime,
-                        pages: int.parse(_authorNameController.text),
-                        // category: _categoryController.text,
-                          );
+                        authorName: _authorNameController.text,
+                        category: _categoryController.text,
+                        url:widget.book.url,
+                      );
 
                       await bookService.updateBook(updatedBook);
                       Navigator.pop(context);
+                      showCustomSnackbar(context: context, message:'Book Edited successfully',
+                          onUndoPressed: (){},
+                          onCustomActionPressed: (){});
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -123,9 +127,10 @@ class _EditBookScreenState extends State<EditBookScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: Text('Save',style: TextStyle(
-                    color: Colors.white
-                  ),),
+                  child: Text(
+                    'Save',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ),
             ],
